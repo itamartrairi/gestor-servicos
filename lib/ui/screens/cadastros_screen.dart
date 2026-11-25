@@ -18,7 +18,6 @@ class CadastrosScreen extends StatelessWidget {
       (Icons.people_outline, 'Clientes', SimplesCrud.clientes()),
       (Icons.sell_outlined, 'Tabelas de preço', const TabelasPrecoScreen()),
       (Icons.category_outlined, 'Categorias de serviços e produtos', SimplesCrud.categorias()),
-      (Icons.account_balance_outlined, 'Contas financeiras', SimplesCrud.contas()),
       (Icons.credit_card, 'Meios de pagamento', SimplesCrud.meios()),
       (Icons.label_outline, 'Categorias financeiras', SimplesCrud.categoriasFin()),
     ];
@@ -210,7 +209,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               CampoTexto('Nome (ex.: 2 L, Tamanho M, Azul)', nome),
-              CampoTexto('Código / SKU desta variação', codigo),
               CampoTexto('Tamanho / volume / peso', tam),
               CampoTexto('Cor / sabor / modelo', sabor),
               CampoTexto('Observação', acab),
@@ -282,7 +280,6 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               style: TextStyle(fontSize: 12)),
         ],
         if (!_insumo && _tipo != 'servico') ...[
-          CampoTexto('Código / SKU', _codigo),
           CampoTexto('Código de barras (EAN)', _barras),
           CampoLista<int>('Fornecedor principal', _marca, _marcas, (v) => setState(() => _marca = v)),
         ],

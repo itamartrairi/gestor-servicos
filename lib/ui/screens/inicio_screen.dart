@@ -4,6 +4,7 @@ import '../../core/format.dart';
 import '../../services/base.dart';
 import '../widgets/comum.dart';
 import 'agenda_screen.dart';
+import 'cadastros_screen.dart';
 import 'dre_screen.dart';
 import 'financeiro_screen.dart';
 import 'pedido_form_screen.dart';
@@ -122,6 +123,10 @@ class _InicioScreenState extends State<InicioScreen> {
                       setState(() => _v++);
                     }),
                     _Atalho(Icons.analytics_outlined, 'DRE', corVerde, () => abrir(context, const DreScreen())),
+                    _Atalho(Icons.folder_open_outlined, 'Cadastros', corEscura, () async {
+                      await abrir(context, const CadastrosScreen());
+                      setState(() => _v++);
+                    }),
                   ]),
                   const SizedBox(height: 14),
                   _Titulo('Resultado de ${d['mes']}'),
@@ -243,13 +248,13 @@ class _Atalho extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 6),
             child: Column(children: [
               Container(
-                height: 52,
-                width: 52,
+                height: 48,
+                width: 48,
                 decoration: BoxDecoration(color: cor.withOpacity(0.13), borderRadius: BorderRadius.circular(16)),
                 child: Icon(icone, color: cor),
               ),
               const SizedBox(height: 6),
-              Text(rotulo, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              Text(rotulo, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
             ]),
           ),
         ),
