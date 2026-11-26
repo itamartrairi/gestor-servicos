@@ -22,7 +22,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
       - run: flutter pub get
       - name: Gerar capturas
-        run: flutter test --update-goldens test_telas/telas_test.dart
+        run: flutter test test_telas/telas_test.dart
       - name: Salvar no repositório
         if: always()
         run: |

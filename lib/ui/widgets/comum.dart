@@ -255,7 +255,9 @@ class _CarregarState<T> extends State<Carregar<T>> {
     _f = widget.futuro();
   }
 
-  void _recarregar() => setState(() => _f = widget.futuro());
+  void _recarregar() => setState(() {
+        _f = widget.futuro();
+      });
 
   @override
   Widget build(BuildContext context) => FutureBuilder<T>(

@@ -1,10 +1,13 @@
 // Gera as capturas de tela usadas no tutorial (não faz parte dos testes
-// normais). Rode: flutter test --update-goldens test_telas/telas_test.dart
+// normais). Rode: flutter test test_telas/telas_test.dart
 // As imagens ficam em test_telas/telas/.
 // ignore_for_file: depend_on_referenced_packages
 import 'dart:io';
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gestor_servicos/data/db.dart';
@@ -57,10 +60,17 @@ Future<void> _assentar(WidgetTester t, {int max = 80}) async {
 
 Future<void> _foto(WidgetTester t, String nome) async {
   await _assentar(t);
-  await expectLater(find.byKey(_chave), matchesGoldenFile('telas/$nome.png'));
+  final limite = _chave.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  await t.runAsync(() async {
+    final img = await limite.toImage(pixelRatio: 3);
+    final png = await img.toByteData(format: ui.ImageByteFormat.png);
+    final f = File('test_telas/telas/$nome.png');
+    await f.parent.create(recursive: true);
+    await f.writeAsBytes(png!.buffer.asUint8List());
+  });
 }
 
-NavigatorState _nav(WidgetTester t) => Navigator.of(t.element(find.byType(HomeScreen)));
+NavigatorState _nav(WidgetTester t) => Navigator.of(t.element(find.byType(HomeScreen, skipOffstage: false)));
 
 Future<void> _abrir(WidgetTester t, Widget tela) async {
   _nav(t).push(MaterialPageRoute(builder: (_) => tela));
