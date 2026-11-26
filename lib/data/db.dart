@@ -6,10 +6,11 @@ import 'package:sqflite/sqflite.dart';
 /// Banco SQLite local. Cada instalação mantém sua própria base no aparelho.
 /// As migrações são incrementais e preservam os dados existentes.
 class AppDb {
-  AppDb._(this.db, this.path);
+  AppDb._(this.db, this.path, this.factory);
 
   final Database db;
   final String path;
+  final DatabaseFactory factory;
 
   static AppDb? _instance;
   static AppDb get instance {
@@ -51,7 +52,7 @@ class AppDb {
         },
       ),
     );
-    final app = AppDb._(db, path);
+    final app = AppDb._(db, path, f);
     _instance = app;
     return app;
   }

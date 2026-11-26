@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -16,12 +16,12 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _nome = TextEditingController();
-  String? _logo;
+  Uint8List? _logo;
 
   @override
   void initState() {
     super.initState();
-    Logo.caminho().then((p) => setState(() => _logo = p));
+    Logo.bytes().then((b) => setState(() => _logo = b));
   }
 
   @override
@@ -43,7 +43,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Center(
             child: Column(children: [
               if (_logo != null)
-                Image.file(File(_logo!), height: 96, key: ValueKey(DateTime.now().millisecondsSinceEpoch)),
+                Image.memory(_logo!, height: 96, gaplessPlayback: true),
               TextButton.icon(
                 icon: const Icon(Icons.image_outlined),
                 label: Text(_logo == null ? 'Adicionar logomarca (opcional)' : 'Trocar logomarca'),

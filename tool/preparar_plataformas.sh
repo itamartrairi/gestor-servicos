@@ -6,8 +6,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [ ! -d android ] || [ ! -d ios ]; then
-  flutter create --platforms=android,ios --org br.com.gestorservicos --project-name gestor_servicos .
+if [ ! -d android ] || [ ! -d ios ] || [ ! -d web ]; then
+  flutter create --platforms=android,ios,web --org br.com.gestorservicos --project-name gestor_servicos .
   # O template cria um teste de exemplo que não se aplica a este app.
   rm -f test/widget_test.dart
 fi
@@ -41,7 +41,25 @@ open(p, 'w', encoding='utf-8').write(s)
 EOF
 fi
 
-# Ícone do app (Android e iPhone) a partir de assets/icon.
+# Versão web (PWA): nome, cores e modo "app" ao adicionar à tela inicial.
+if [ -f web/manifest.json ]; then
+  python3 - <<'EOF2'
+import json, re
+m = json.load(open('web/manifest.json', encoding='utf-8'))
+m.update({'name': 'Gestor de Serviços', 'short_name': 'Gestor', 'description': 'Agenda, vendas, DRE e fluxo de caixa',
+          'background_color': '#FBF3F7', 'theme_color': '#B4457A', 'display': 'standalone', 'orientation': 'portrait'})
+json.dump(m, open('web/manifest.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+h = open('web/index.html', encoding='utf-8').read()
+h = re.sub(r'<title>.*?</title>', '<title>Gestor de Serviços</title>', h)
+h = re.sub(r'(name="apple-mobile-web-app-title" content=")[^"]*', r'\1Gestor', h)
+h = re.sub(r'(name="description" content=")[^"]*', r'\1Gestor de Serviços - agenda, vendas, DRE e fluxo de caixa', h)
+if 'theme-color' not in h:
+    h = h.replace('</head>', '  <meta name="theme-color" content="#B4457A">\n</head>')
+open('web/index.html', 'w', encoding='utf-8').write(h)
+EOF2
+fi
+
+# Ícone do app (Android, iPhone e web) a partir de assets/icon.
 flutter pub get
 dart run flutter_launcher_icons
 

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
@@ -22,8 +21,8 @@ Future<Uint8List> gerarResumoPedido(int pedidoId) async {
   final itens = await S.pedidos.itens(pedidoId);
   final t = await S.pedidos.totais(pedidoId);
   final negocio = await Base(banco).config('nome_negocio') ?? '';
-  final logoPath = await Logo.caminho();
-  final logo = logoPath == null ? null : pw.MemoryImage(await File(logoPath).readAsBytes());
+  final logoBytes = await Logo.bytes();
+  final logo = logoBytes == null ? null : pw.MemoryImage(logoBytes);
   doc.addPage(pw.Page(
     pageFormat: PdfPageFormat.a5,
     margin: const pw.EdgeInsets.all(24),

@@ -44,7 +44,7 @@ class RelatoriosScreen extends StatelessWidget {
 
 Future<CabecalhoPdf> _cabecalho(String titulo, String ini, String fim, List<String> filtros) async => CabecalhoPdf(
       negocio: await Base(banco).config('nome_negocio') ?? '',
-      logoPath: await Logo.caminho(),
+      logo: await Logo.bytes(),
       titulo: titulo,
       periodo: '${dataBr(ini)} a ${dataBr(fim)}',
       filtros: filtros,

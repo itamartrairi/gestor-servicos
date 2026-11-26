@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show rootBundle;
@@ -13,13 +12,13 @@ import 'relatorio_service.dart';
 class CabecalhoPdf {
   CabecalhoPdf({
     required this.negocio,
-    this.logoPath,
+    this.logo,
     required this.titulo,
     required this.periodo,
     required this.filtros,
   });
   final String negocio;
-  final String? logoPath;
+  final Uint8List? logo;
   final String titulo;
   final String periodo;
   final List<String> filtros;
@@ -126,12 +125,8 @@ class PdfService {
         ],
       );
 
-  static Future<pw.ImageProvider?> _logo(String? path) async {
-    if (path == null) return null;
-    final f = File(path);
-    if (!await f.exists()) return null;
-    return pw.MemoryImage(await f.readAsBytes());
-  }
+  static Future<pw.ImageProvider?> _logo(Uint8List? bytes) async =>
+      bytes == null ? null : pw.MemoryImage(bytes);
 
   // ===================== PDF 1 — FLUXO DE CAIXA =====================
 
@@ -141,7 +136,7 @@ class PdfService {
     FluxoProjetado? projetado,
   }) async {
     final doc = await _documento();
-    final logo = await _logo(cab.logoPath);
+    final logo = await _logo(cab.logo);
     final emissao = dataHoraBr(DateTime.now().toIso8601String());
     doc.addPage(pw.MultiPage(
       pageTheme: _pagina(),
@@ -254,7 +249,7 @@ class PdfService {
 
   static Future<Uint8List> vendasCustos({required CabecalhoPdf cab, required VendasCustos v}) async {
     final doc = await _documento();
-    final logo = await _logo(cab.logoPath);
+    final logo = await _logo(cab.logo);
     final emissao = dataHoraBr(DateTime.now().toIso8601String());
     String mg(double? m) => m == null ? '—' : pct(m);
     doc.addPage(pw.MultiPage(

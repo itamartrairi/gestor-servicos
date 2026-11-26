@@ -4,6 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 
 import 'data/db.dart';
+import 'data/fabrica.dart';
 import 'services/base.dart';
 import 'services/demo_service.dart';
 import 'ui/screens/home_screen.dart';
@@ -13,6 +14,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Intl.defaultLocale = 'pt_BR';
   await initializeDateFormatting('pt_BR');
+  await configurarBanco();
   await AppDb.abrir();
   runApp(const GestorApp());
 }

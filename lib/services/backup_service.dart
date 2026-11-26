@@ -1,11 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:cryptography/cryptography.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import '../core/armazenamento.dart';
 
 import '../data/db.dart';
 
@@ -29,16 +27,6 @@ class BackupService {
     return h.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  static Future<String?> caminhoLogo() async {
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final f = File(p.join(dir.path, 'logo.png'));
-      return await f.exists() ? f.path : null;
-    } catch (_) {
-      return null; // ambiente sem plugin (testes)
-    }
-  }
-
   /// Gera os bytes do backup criptografado da base atual.
   static Future<Uint8List> gerar({required AppDb app, required String senha}) async {
     if (senha.length < 4) throw RegraException('Use uma senha com pelo menos 4 caracteres');
@@ -46,10 +34,10 @@ class BackupService {
     try {
       await app.db.rawQuery('PRAGMA wal_checkpoint(FULL)');
     } catch (_) {}
-    final dbBytes = await File(app.path).readAsBytes();
+    final dbBytes = await app.factory.readDatabaseBytes(app.path);
     final arquivos = <String, List<int>>{'banco.db': dbBytes};
-    final logo = await caminhoLogo();
-    if (logo != null) arquivos['logo.png'] = await File(logo).readAsBytes();
+    final logo = await Armazenamento.ler('logo.png');
+    if (logo != null) arquivos['logo.png'] = logo;
     final manifesto = {
       'app': 'gestor_servicos',
       'versao_esquema': AppDb.versaoEsquema,
@@ -139,50 +127,38 @@ class BackupService {
     required AppDb atual,
     required Map<String, List<int>> arquivos,
   }) async {
+    final f = atual.factory;
     final caminho = atual.path;
-    final docs = await getApplicationDocumentsDirectory();
-    final temp = File('$caminho.restaurando');
-    final copia = File('$caminho.anterior');
-    final logoPath = p.join(docs.path, 'logo.png');
-    final logoAnterior = File('$logoPath.anterior');
+    final temp = '$caminho.restaurando';
+    final novosBytes = Uint8List.fromList(arquivos['banco.db']!);
 
-    await temp.writeAsBytes(arquivos['banco.db']!, flush: true);
+    await f.writeDatabaseBytes(temp, novosBytes);
     // Testa abrir o banco restaurado (inclui migrações) antes de substituir.
-    final teste = await AppDb.abrir(caminho: temp.path);
+    final teste = await AppDb.abrir(caminho: temp, factory: f);
     final cfg = await teste.db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='config'");
     await teste.fechar();
     if (cfg.isEmpty) {
-      await temp.delete();
+      await f.deleteDatabase(temp);
       throw RegraException('O arquivo restaurado não contém uma base válida.');
     }
+    final restaurado = await f.readDatabaseBytes(temp);
+    await f.deleteDatabase(temp);
 
+    final copia = await atual.factory.readDatabaseBytes(caminho);
+    final logoAnterior = await Armazenamento.ler('logo.png');
     await atual.fechar();
     try {
-      if (await copia.exists()) await copia.delete();
-      await File(caminho).copy(copia.path);
-      for (final suf in ['-wal', '-shm', '-journal']) {
-        final f = File('$caminho$suf');
-        if (await f.exists()) await f.delete();
-      }
-      await temp.copy(caminho);
-      await temp.delete();
-      if (await File(logoPath).exists()) await File(logoPath).copy(logoAnterior.path);
-      if (arquivos.containsKey('logo.png')) {
-        await File(logoPath).writeAsBytes(arquivos['logo.png']!, flush: true);
-      } else if (await File(logoPath).exists()) {
-        await File(logoPath).delete();
-      }
-      final novo = await AppDb.abrir(caminho: caminho);
-      if (await copia.exists()) await copia.delete();
-      if (await logoAnterior.exists()) await logoAnterior.delete();
-      return novo;
+      await f.deleteDatabase(caminho);
+      await f.writeDatabaseBytes(caminho, restaurado);
+      final logo = arquivos['logo.png'];
+      await Armazenamento.gravar('logo.png', logo == null ? null : Uint8List.fromList(logo));
+      return await AppDb.abrir(caminho: caminho, factory: f);
     } catch (e) {
       // Recupera a base anterior.
-      if (await copia.exists()) {
-        await copia.copy(caminho);
-      }
-      if (await logoAnterior.exists()) await logoAnterior.copy(logoPath);
-      await AppDb.abrir(caminho: caminho);
+      await f.deleteDatabase(caminho);
+      await f.writeDatabaseBytes(caminho, copia);
+      await Armazenamento.gravar('logo.png', logoAnterior);
+      await AppDb.abrir(caminho: caminho, factory: f);
       rethrow;
     }
   }

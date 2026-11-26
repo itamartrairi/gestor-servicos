@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import '../../core/arquivos.dart';
@@ -24,7 +23,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
   final _imposto = TextEditingController();
   final _alerta = TextEditingController();
   final _margem = TextEditingController();
-  String? _logo;
+  Uint8List? _logo;
   bool _ok = false;
 
   @override
@@ -39,7 +38,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
     _imposto.text = (await b.config('pct_imposto_vendas') ?? '0').replaceAll('.', ',');
     _alerta.text = await b.config('alerta_validade_dias') ?? '3';
     _margem.text = (await b.config('margem_padrao_pct') ?? '30').replaceAll('.', ',');
-    _logo = await Logo.caminho();
+    _logo = await Logo.bytes();
     setState(() => _ok = true);
   }
 
@@ -136,7 +135,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
         const Secao('Negócio'),
         CampoTexto('Nome do negócio', _nome),
         Row(children: [
-          if (_logo != null) Image.file(File(_logo!), height: 56, key: ValueKey(DateTime.now())),
+          if (_logo != null) Image.memory(_logo!, height: 56, gaplessPlayback: true),
           TextButton.icon(
             icon: const Icon(Icons.image_outlined),
             label: Text(_logo == null ? 'Adicionar logomarca' : 'Trocar logomarca'),
