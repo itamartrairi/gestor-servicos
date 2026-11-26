@@ -56,7 +56,7 @@ class _GestorAppState extends State<GestorApp> {
             foregroundColor: Color(0xFF8E2F5E),
             surfaceTintColor: Colors.transparent,
             centerTitle: false,
-            titleTextStyle: TextStyle(color: Color(0xFF8E2F5E), fontSize: 20, fontWeight: FontWeight.bold),
+            titleTextStyle: TextStyle(fontFamily: 'Roboto', color: Color(0xFF8E2F5E), fontSize: 20, fontWeight: FontWeight.bold),
           ),
           cardTheme: CardThemeData(
             color: Colors.white,

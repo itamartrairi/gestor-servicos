@@ -88,6 +88,7 @@ void main() {
   late Directory tmp;
 
   setUpAll(() async {
+    debugDisableShadows = false;
     tmp = await Directory.systemTemp.createTemp('telas');
     PathProviderPlatform.instance = _CaminhosFalsos(tmp.path);
     Intl.defaultLocale = 'pt_BR';
@@ -100,6 +101,7 @@ void main() {
   void tamanhoCelular(WidgetTester t) {
     t.view.physicalSize = const Size(1080, 2340);
     t.view.devicePixelRatio = 3;
+    debugDisableShadows = false;
     addTearDown(t.view.reset);
   }
 

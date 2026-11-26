@@ -220,7 +220,7 @@ class _Contas extends StatelessWidget {
             Card(child: ListTile(title: Text(c['nome'] as String), subtitle: Text(c['tipo'] as String), trailing: Text(brl(Base.d(c['saldo']))))),
           LinhaValor('Saldo consolidado em ${dataBrDe(DateTime.now())}', brl(total), negrito: true),
           const SizedBox(height: 8),
-          const Text('Cadastre contas e saldos iniciais em Mais > Cadastros > Contas financeiras.', style: TextStyle(fontSize: 12)),
+          const Text('Caixa: dinheiro em mãos. Conta bancária: Pix, cartão e transferências.', style: TextStyle(fontSize: 12)),
         ]);
       },
     );
