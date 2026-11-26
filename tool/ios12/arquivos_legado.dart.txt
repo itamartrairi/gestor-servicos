@@ -3,8 +3,9 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 
 /// Versão para o file_picker 10 (Flutter 3.32 / iOS 12).
-Future<String?> salvarArquivo({required String titulo, required String nome, required Uint8List bytes}) =>
-    FilePicker.platform.saveFile(dialogTitle: titulo, fileName: nome, bytes: bytes);
+/// Devolve true se o arquivo foi salvo.
+Future<bool> salvarArquivo({required String titulo, required String nome, required Uint8List bytes}) async =>
+    (await FilePicker.platform.saveFile(dialogTitle: titulo, fileName: nome, bytes: bytes)) != null;
 
 Future<Uint8List?> escolherArquivo() async {
   final r = await FilePicker.platform.pickFiles(withData: true);

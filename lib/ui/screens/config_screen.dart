@@ -91,8 +91,8 @@ class _ConfigScreenState extends State<ConfigScreen> {
     await executar(context, () async {
       final bytes = await BackupService.gerar(app: AppDb.instance, senha: senha);
       final nome = 'backup_gestor_servicos_${hojeIso()}.gsvbak';
-      final caminho = await salvarArquivo(titulo: 'Salvar backup', nome: nome, bytes: bytes);
-      if (caminho == null) throw RegraException('Backup não salvo (operação cancelada).');
+      final salvo = await salvarArquivo(titulo: 'Salvar backup', nome: nome, bytes: bytes);
+      if (!salvo) throw RegraException('Backup não salvo (operação cancelada).');
       await Base.auditar(banco, 'backup', detalhes: nome);
     }, sucesso: 'Backup salvo');
   }

@@ -217,8 +217,8 @@ class VisualizarPdf extends StatelessWidget {
             tooltip: 'Salvar em…',
             onPressed: () async {
               await executar(context, () async {
-                final caminho = await salvarArquivo(titulo: 'Salvar PDF', nome: nome, bytes: bytes);
-                if (caminho != null && context.mounted) mostrarOk(context, 'PDF salvo');
+                final salvo = await salvarArquivo(titulo: 'Salvar PDF', nome: nome, bytes: bytes);
+                if (salvo && context.mounted) mostrarOk(context, 'PDF salvo');
               });
             },
           ),
