@@ -5,9 +5,15 @@ name: IPA para iPhone antigo (iOS 12)
 # O arquivo deve ser assinado e instalado com o Sideloadly (Apple ID).
 
 on:
+  # Roda só quando este arquivo muda ou manualmente (Actions › Run workflow),
+  # para poupar os minutos de Mac do plano.
   push:
     branches: [main]
+    paths: ['.github/workflows/ios12.yml']
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   ipa:
@@ -65,19 +71,40 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Compilar iOS (sem assinatura)
-        run: flutter build ios --release --no-codesign
+      - name: Compilar e arquivar iOS (sem assinatura)
+        run: flutter build ipa --release --no-codesign
 
-      - name: Conferir alvo mínimo
-        run: /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" build/ios/iphoneos/Runner.app/Info.plist
-
-      - name: Montar .ipa
+      - name: Montar .ipa a partir do arquivo do Xcode
         run: |
-          mkdir -p Payload
-          cp -R build/ios/iphoneos/Runner.app Payload/
-          zip -qry GestorServicos-iOS12.ipa Payload
+          APP=build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app
+          test -d "$APP"
+          echo "Versão mínima do iOS: $(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist")"
+          echo "Arquiteturas: $(lipo -archs "$APP/Runner")"
+          rm -rf saida && mkdir -p saida/Payload
+          ditto "$APP" saida/Payload/Runner.app
+          xattr -cr saida/Payload
+          (cd saida && zip -qr -X ../GestorServicos-iOS12.ipa Payload)
+          ls -lh GestorServicos-iOS12.ipa
+
+      - name: Validar o .ipa
+        run: |
+          unzip -tq GestorServicos-iOS12.ipa
+          unzip -l GestorServicos-iOS12.ipa | grep -E "Payload/Runner.app/(Runner|Info.plist)$"
+          mkdir -p teste && unzip -q GestorServicos-iOS12.ipa -d teste
+          file teste/Payload/Runner.app/Runner
+          shasum -a 256 GestorServicos-iOS12.ipa | tee GestorServicos-iOS12.ipa.sha256
 
       - uses: actions/upload-artifact@v4
         with:
           name: gestor-servicos-ipa-ios12
           path: GestorServicos-iOS12.ipa
+
+      - name: Publicar o .ipa para download direto (Releases)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ios12-${{ github.run_number }}"
+          gh release create "$TAG" GestorServicos-iOS12.ipa GestorServicos-iOS12.ipa.sha256 \
+            --title "iPhone (iOS 12) - versão ${{ github.run_number }}" \
+            --notes "Arquivo .ipa sem assinatura para instalar com o Sideloadly. Veja o guia de instalação no iPhone." \
+            --latest=false
