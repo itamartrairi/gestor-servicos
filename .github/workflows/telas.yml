@@ -1,0 +1,33 @@
+name: Capturas de tela (tutorial)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['test_telas/telas_test.dart', '.github/workflows/telas.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  telas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - run: flutter pub get
+      - name: Gerar capturas
+        run: flutter test --update-goldens test_telas/telas_test.dart
+      - name: Salvar no repositório
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -f test_telas/telas || true
+          git commit -m "Capturas de tela do tutorial" || echo "nada novo"
+          git push || true
