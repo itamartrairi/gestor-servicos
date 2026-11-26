@@ -1,0 +1,77 @@
+name: IPA para iPhone antigo (iOS 12)
+
+# Gera um .ipa SEM assinatura, compatível com iOS 12 (iPhone 5s, 6 e 6 Plus).
+# Usa o Flutter 3.32, a última versão que ainda aceita o iOS 12.
+# O arquivo deve ser assinado e instalado com o Sideloadly (Apple ID).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.8'
+          channel: stable
+          cache: true
+
+      - name: Gerar pastas das plataformas
+        run: bash tool/preparar_plataformas.sh
+
+      - name: Ajustar alvo mínimo para iOS 12
+        run: |
+          perl -pi -e 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]+;/IPHONEOS_DEPLOYMENT_TARGET = 12.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          if [ -f ios/Flutter/AppFrameworkInfo.plist ]; then
+            perl -0pi -e 's#(<key>MinimumOSVersion</key>\s*<string>)[0-9.]+#${1}12.0#' ios/Flutter/AppFrameworkInfo.plist
+          fi
+          if [ -f ios/Podfile ]; then
+            perl -pi -e "s/^#?\s*platform :ios.*/platform :ios, '12.0'/" ios/Podfile
+            cat >> ios/Podfile <<'EOF'
+
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              flutter_additional_ios_build_settings(target)
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'
+              end
+            end
+          end
+          EOF
+            # Remove o post_install original (fica só o nosso, no fim).
+            python3 - <<'PY'
+          import re
+          p='ios/Podfile'; s=open(p).read()
+          blocos=[m.start() for m in re.finditer(r'^post_install do', s, re.M)]
+          if len(blocos)>1:
+              ini=blocos[0]; fim=s.index('\nend\n', ini)+5
+              s=s[:ini]+s[fim:]
+          open(p,'w').write(s)
+          PY
+          fi
+          grep -n "platform :ios\|12.0" ios/Podfile || true
+
+      - run: flutter pub get
+
+      - name: Compilar iOS (sem assinatura)
+        run: flutter build ios --release --no-codesign
+
+      - name: Conferir alvo mínimo
+        run: /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" build/ios/iphoneos/Runner.app/Info.plist
+
+      - name: Montar .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry GestorServicos-iOS12.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gestor-servicos-ipa-ios12
+          path: GestorServicos-iOS12.ipa
