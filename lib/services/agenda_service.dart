@@ -81,7 +81,9 @@ class AgendaService {
     };
     if (id == null) return db.insert('agendamentos', {...dados, 'status': 'agendado', 'criado_em': agoraIso()});
     final a = await obter(id);
-    if (a['status'] != 'agendado') throw RegraException('Só é possível editar atendimentos ainda agendados');
+    if (a['status'] == 'concluido') {
+      throw RegraException('Atendimento já concluído. Use "Desfazer conclusão" para poder editar.');
+    }
     await db.update('agendamentos', dados, where: 'id = ?', whereArgs: [id]);
     return id;
   }
@@ -167,17 +169,22 @@ class AgendaService {
 
   Future<void> alterarStatus(int id, String status) async {
     if (!['cancelado', 'faltou', 'agendado'].contains(status)) throw RegraException('Situação inválida');
-    final a = await obter(id);
-    if (a['status'] == 'concluido') throw RegraException('Atendimento concluído: estorne a venda em Vendas se precisar.');
+    await _desfazerVenda(id);
     await db.update('agendamentos', {'status': status}, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<void> excluir(int id) async {
-    final a = await obter(id);
-    if (a['status'] == 'concluido') {
-      throw RegraException('Atendimento concluído já gerou venda. Para desfazer, estorne a venda em Vendas.');
-    }
+    await _desfazerVenda(id);
     await db.delete('agendamentos', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Se o atendimento já foi concluído, exclui a venda gerada (desfaz tudo).
+  Future<void> _desfazerVenda(int id) async {
+    final a = await obter(id);
+    final pid = a['pedido_id'] as int?;
+    if (a['status'] == 'concluido' && pid != null) {
+      await pedidos.excluir(pid);
+    }
   }
 
   /// Totais para o painel: atendimentos e faturamento do dia.

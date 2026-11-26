@@ -122,7 +122,7 @@ class _ItemEstoqueScreenState extends State<ItemEstoqueScreen> {
           Text('Saldo válido atual: ${numero(atual)}'),
           CampoNumero('Quantidade contada', qtd),
           if (!insumo) CampoNumero('Custo unitário (se houver sobra)', custo, prefixo: 'R\$ '),
-          CampoTexto('Motivo', motivo),
+          CampoTexto('Motivo (opcional)', motivo),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),
@@ -153,7 +153,7 @@ class _ItemEstoqueScreenState extends State<ItemEstoqueScreen> {
         title: Text('Registrar perda – lote ${lote['codigo']}'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           CampoNumero('Quantidade', qtd),
-          CampoTexto('Motivo (vencido, avaria…)', motivo),
+          CampoTexto('Motivo (opcional: vencido, avaria…)', motivo),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancelar')),

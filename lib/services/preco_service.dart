@@ -85,18 +85,21 @@ class PrecoService {
 
   /// Exclui uma tabela de preço que não seja a padrão nem usada em pedidos.
   /// Os clientes que usavam a tabela passam a usar a padrão.
-  Future<void> excluirTabela(int tabelaId) async {
-    await db.transaction((txn) async {
+  Future<String> excluirTabela(int tabelaId) async {
+    return db.transaction((txn) async {
       final t = await txn.query('tabelas_preco', where: 'id = ?', whereArgs: [tabelaId]);
       if (t.isEmpty) throw RegraException('Tabela não encontrada');
       if (Base.i(t.first['padrao']) == 1) throw RegraException('A tabela padrão não pode ser excluída. Defina outra como padrão antes.');
       final p = await txn.rawQuery('SELECT COUNT(*) c FROM pedidos WHERE tabela_id = ?', [tabelaId]);
       if (Base.i(p.first['c']) > 0) {
-        throw RegraException('A tabela foi usada em pedidos. Desative-a em vez de excluir.');
+        await txn.update('tabelas_preco', {'ativo': 0}, where: 'id = ?', whereArgs: [tabelaId]);
+        await txn.update('clientes', {'tabela_id': null}, where: 'tabela_id = ?', whereArgs: [tabelaId]);
+        return 'A tabela foi usada em vendas, então foi desativada.';
       }
       await txn.update('clientes', {'tabela_id': null}, where: 'tabela_id = ?', whereArgs: [tabelaId]);
       await txn.delete('precos_tabela', where: 'tabela_id = ?', whereArgs: [tabelaId]);
       await txn.delete('tabelas_preco', where: 'id = ?', whereArgs: [tabelaId]);
+      return 'Tabela excluída';
     });
   }
 

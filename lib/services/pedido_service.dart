@@ -546,33 +546,68 @@ class PedidoService {
     return id;
   }
 
-  /// Exclui um pedido que não teve efeito financeiro (orçamento, confirmado sem
-  /// pagamento ou cancelado sem sinal): libera as reservas e apaga o pedido.
-  /// Pedidos entregues ou com pagamentos devem ser cancelados/estornados.
+  /// Exclui a venda/pedido em qualquer situação e desfaz tudo o que ela gerou:
+  /// dinheiro recebido, contas a receber (fiado), cartão, DRE e a baixa de
+  /// estoque. Se veio da agenda, o atendimento volta para "agendado".
   Future<void> excluir(int pedidoId) async {
     await db.transaction((txn) async {
       final r = await txn.query('pedidos', where: 'id = ?', whereArgs: [pedidoId]);
       if (r.isEmpty) throw RegraException('Pedido não encontrado');
-      final p = r.first;
-      if (p['status'] == 'entregue') {
-        throw RegraException('Pedido entregue não pode ser excluído: use o estorno de venda.');
+      String marcas(int n) => List.filled(n, '?').join(',');
+
+      // 1. Contas a receber e repasses de cartão do pedido.
+      final tits = (await txn.rawQuery(
+              "SELECT id FROM titulos WHERE ref_tipo IN ('pedido','cartao') AND ref_id = ?", [pedidoId]))
+          .map((e) => e['id'] as int)
+          .toList();
+
+      // 2. Dinheiro: movimentos do pedido, dos títulos e seus estornos.
+      final porTitulo = tits.isEmpty ? '' : ' OR titulo_id IN (${marcas(tits.length)})';
+      final movs = (await txn.rawQuery(
+              "SELECT id FROM movimentos_financeiros WHERE (ref_tipo IN "
+              "('pedido','pedido_pagamento','pedido_devolucao','pedido_estorno','cartao') AND ref_id = ?)$porTitulo",
+              [pedidoId, ...tits]))
+          .map((e) => e['id'] as int)
+          .toSet();
+      if (movs.isNotEmpty) {
+        final est = await txn.rawQuery(
+            'SELECT id FROM movimentos_financeiros WHERE estorno_de IN (${marcas(movs.length)})', movs.toList());
+        movs.addAll(est.map((e) => e['id'] as int));
+        final ids = movs.toList();
+        await txn.rawDelete(
+            "DELETE FROM lancamentos_resultado WHERE ref_tipo IN ('movimento','estorno_movimento') "
+            'AND ref_id IN (${marcas(ids.length)})',
+            ids);
+        await txn.rawDelete('DELETE FROM movimentos_financeiros WHERE id IN (${marcas(ids.length)})', ids);
       }
-      final pags = await txn.rawQuery('SELECT COUNT(*) c FROM pagamentos_pedido WHERE pedido_id = ?', [pedidoId]);
-      if (Base.i(pags.first['c']) > 0) {
-        throw RegraException('O pedido tem pagamento/sinal registrado. Cancele o pedido (devolvendo o sinal) em vez de excluir.');
+      if (tits.isNotEmpty) {
+        await txn.rawDelete('DELETE FROM titulos WHERE id IN (${marcas(tits.length)})', tits);
       }
-      final fin1 = await txn.rawQuery(
-          "SELECT COUNT(*) c FROM titulos WHERE ref_tipo = 'pedido' AND ref_id = ?", [pedidoId]);
-      final dre = await txn.rawQuery(
-          "SELECT COUNT(*) c FROM lancamentos_resultado WHERE ref_tipo = 'pedido' AND ref_id = ?", [pedidoId]);
-      if (Base.i(fin1.first['c']) > 0 || Base.i(dre.first['c']) > 0) {
-        throw RegraException('O pedido já gerou lançamentos financeiros e não pode ser excluído.');
+
+      // 3. Resultado (DRE) da venda.
+      await txn.delete('lancamentos_resultado', where: "ref_tipo = 'pedido' AND ref_id = ?", whereArgs: [pedidoId]);
+
+      // 4. Estoque: os produtos voltam para os lotes de onde saíram.
+      final movEst = await txn.query('movimentos_estoque',
+          where: "ref_tipo = 'pedido' AND ref_id = ?", whereArgs: [pedidoId]);
+      for (final m in movEst) {
+        final lote = m['lote_id'] as int?;
+        if (lote != null) {
+          await txn.rawUpdate('UPDATE lotes SET saldo = saldo - ? WHERE id = ?', [Base.d(m['quantidade']), lote]);
+        }
       }
+      await txn.delete('movimentos_estoque', where: "ref_tipo = 'pedido' AND ref_id = ?", whereArgs: [pedidoId]);
+
+      // 5. O pedido e seus detalhes.
       await txn.delete('reservas', where: 'pedido_id = ?', whereArgs: [pedidoId]);
-      await desvincularPedido(txn, pedidoId);
+      await txn.delete('pagamentos_pedido', where: 'pedido_id = ?', whereArgs: [pedidoId]);
       await txn.delete('pedido_historico', where: 'pedido_id = ?', whereArgs: [pedidoId]);
       await txn.delete('pedido_itens', where: 'pedido_id = ?', whereArgs: [pedidoId]);
       await txn.delete('pedidos', where: 'id = ?', whereArgs: [pedidoId]);
+
+      // 6. Atendimento da agenda volta a ficar em aberto.
+      await txn.update('agendamentos', {'status': 'agendado', 'pedido_id': null},
+          where: 'pedido_id = ?', whereArgs: [pedidoId]);
       await Base.auditar(txn, 'excluir_pedido', entidade: 'pedidos', entidadeId: pedidoId);
     });
   }
@@ -591,7 +626,6 @@ class PedidoService {
     int? contaDevolucaoId,
     String? data,
   }) async {
-    if (motivo.trim().isEmpty) throw RegraException('Informe o motivo do cancelamento');
     await db.transaction((txn) async {
       final p = (await txn.query('pedidos', where: 'id = ?', whereArgs: [pedidoId])).first;
       if (p['status'] == 'entregue') throw RegraException('Pedido entregue: use o estorno de venda');
@@ -605,10 +639,6 @@ class PedidoService {
       await estoque.liberarReservasPedido(txn, pedidoId);
       if (valorDevolvido > 0) {
         if (contaDevolucaoId == null) throw RegraException('Selecione a conta da devolução');
-        final saldoConta = await fin.saldoConta(contaDevolucaoId, ex: txn);
-        if (valorDevolvido > saldoConta + 0.005) {
-          throw RegraException('Saldo insuficiente na conta (${brl(saldoConta)}).');
-        }
         await fin.criarMovimento(txn,
             data: dt,
             contaId: contaDevolucaoId,
@@ -649,7 +679,6 @@ class PedidoService {
     int? contaDevolucaoId,
     String? data,
   }) async {
-    if (motivo.trim().isEmpty) throw RegraException('Informe o motivo do estorno');
     if (valor <= 0) throw RegraException('Informe o valor do estorno');
     await db.transaction((txn) async {
       final p = (await txn.query('pedidos', where: 'id = ?', whereArgs: [pedidoId])).first;

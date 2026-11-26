@@ -166,8 +166,7 @@ class _CompraFormScreenState extends State<CompraFormScreen> {
               onPressed: () async {
                 final msg = editavel
                     ? 'Excluir esta compra não confirmada?'
-                    : 'Excluir esta compra confirmada? A entrada no estoque e as contas a pagar serão estornadas. '
-                        'Só é possível se os itens ainda não foram usados/vendidos e não houver pagamento manual.';
+                    : 'Excluir esta compra? A entrada no estoque, as contas a pagar e os pagamentos feitos serão desfeitos.';
                 if (!await confirmar(context, 'Excluir compra', msg, ok: 'Excluir')) return;
                 if (!context.mounted) return;
                 final ok = await executar(context, () => S.compras.excluir(widget.compraId!), sucesso: 'Compra excluída');

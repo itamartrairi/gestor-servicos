@@ -157,10 +157,6 @@ class CompraService {
       if (c['condicao'] == 'avista') {
         final conta = c['conta_id'] as int?;
         if (conta == null) throw RegraException('Selecione a conta de pagamento da compra à vista');
-        final saldoConta = await fin.saldoConta(conta, ex: txn);
-        if (total > saldoConta + 0.005) {
-          throw RegraException('Saldo insuficiente na conta (${brl(saldoConta)}). Registre um aporte ou escolha outra conta.');
-        }
         final tid = await fin.criarTitulo(txn,
             tipo: 'pagar',
             descricao: desc,
@@ -217,21 +213,16 @@ class CompraService {
           if ((Base.d(l['saldo']) - Base.d(l['qtd_inicial'])).abs() > Base.eps) {
             throw RegraException('Não é possível excluir: parte de ${it['nome']} desta compra já foi usada ou vendida.');
           }
-          final s = await estoque.saldo(l['item_id'] as int, l['variacao_id'] as int, ex: txn);
-          if (s.valido - Base.d(l['qtd_inicial']) < s.reservado - Base.eps) {
-            throw RegraException('Não é possível excluir: ${it['nome']} desta compra está reservado para pedidos.');
-          }
         }
-        // 2. Financeiro: só pagamentos automáticos da compra à vista podem ser desfeitos.
+        // 2. Financeiro: apaga as contas a pagar e os pagamentos feitos (com juros/descontos).
         final titulos = await txn.query('titulos', where: "ref_tipo = 'compra' AND ref_id = ?", whereArgs: [compraId]);
         for (final t in titulos) {
           final movs = await txn.query('movimentos_financeiros', where: 'titulo_id = ?', whereArgs: [t['id']]);
-          final automatico = c['condicao'] == 'avista' && movs.length <= 1;
-          if (movs.isNotEmpty && !automatico) {
-            throw RegraException('A compra tem pagamentos registrados no Financeiro. Estorne-os antes de excluir.');
+          for (final m in movs) {
+            await txn.delete('lancamentos_resultado',
+                where: "ref_tipo IN ('movimento','estorno_movimento') AND ref_id = ?", whereArgs: [m['id']]);
+            await txn.delete('movimentos_financeiros', where: 'estorno_de = ?', whereArgs: [m['id']]);
           }
-        }
-        for (final t in titulos) {
           await txn.delete('movimentos_financeiros', where: 'titulo_id = ?', whereArgs: [t['id']]);
           await txn.delete('titulos', where: 'id = ?', whereArgs: [t['id']]);
         }

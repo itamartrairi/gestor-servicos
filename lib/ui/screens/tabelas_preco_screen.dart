@@ -79,7 +79,7 @@ class _TabelasPrecoScreenState extends State<TabelasPrecoScreen> {
                 onExcluir: () async {
                   if (!await confirmarExclusao(context, 'a tabela "${t['nome']}"')) return;
                   if (!context.mounted) return;
-                  await executar(context, () => S.precos.excluirTabela(t['id'] as int), sucesso: 'Tabela excluída');
+                  await executar(context, () async { final m = await S.precos.excluirTabela(t['id'] as int); if (context.mounted) mostrarOk(context, m); });
                   rec();
                 },
               ),

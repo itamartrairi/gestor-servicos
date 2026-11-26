@@ -136,78 +136,6 @@ class _PedidoDetalheScreenState extends State<PedidoDetalheScreen> {
     _rec();
   }
 
-  Future<void> _cancelar(Map<String, double> t) async {
-    final motivo = TextEditingController();
-    final adiant = r2(t['pago']! - t['devolvido']!);
-    final dev = TextEditingController(text: fmtCampo(adiant));
-    final contas = await opcoesTabela('contas_financeiras');
-    int conta = contas.keys.first;
-    if (!mounted) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => StatefulBuilder(
-        builder: (c, set) => AlertDialog(
-          title: const Text('Cancelar pedido'),
-          content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              CampoTexto('Motivo', motivo),
-              if (adiant > 0) ...[
-                LinhaValor('Sinal recebido', brl(adiant)),
-                CampoNumero('Valor a devolver', dev, prefixo: 'R\$ '),
-                CampoLista<int>('Conta de saída', conta, contas, (v) => set(() => conta = v!)),
-                const Text('O valor não devolvido fica registrado como sinal retido.', style: TextStyle(fontSize: 12)),
-              ],
-            ]),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Voltar')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Cancelar pedido')),
-          ],
-        ),
-      ),
-    );
-    if (ok != true || !mounted) return;
-    await executar(
-        context,
-        () => S.pedidos.cancelar(
-            pedidoId: widget.pedidoId, motivo: motivo.text, valorDevolvido: parseNum(dev.text), contaDevolucaoId: conta),
-        sucesso: 'Pedido cancelado');
-    _rec();
-  }
-
-  Future<void> _estornar(Map<String, double> t) async {
-    final motivo = TextEditingController();
-    final valor = TextEditingController(text: fmtCampo(t['total']));
-    final contas = await opcoesTabela('contas_financeiras');
-    int conta = contas.keys.first;
-    if (!mounted) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => StatefulBuilder(
-        builder: (c, set) => AlertDialog(
-          title: const Text('Estornar / devolver venda'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            CampoTexto('Motivo', motivo),
-            CampoNumero('Valor do estorno', valor, prefixo: 'R\$ '),
-            CampoLista<int>('Conta para devolver dinheiro', conta, contas, (v) => set(() => conta = v!)),
-            const Text('O estorno abate primeiro o saldo a receber; o restante sai da conta escolhida.', style: TextStyle(fontSize: 12)),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Voltar')),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Estornar')),
-          ],
-        ),
-      ),
-    );
-    if (ok != true || !mounted) return;
-    await executar(
-        context,
-        () => S.pedidos.estornarVenda(
-            pedidoId: widget.pedidoId, valor: parseNum(valor.text), motivo: motivo.text, contaDevolucaoId: conta),
-        sucesso: 'Estorno registrado');
-    _rec();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Carregar<Map<String, Object?>>(
@@ -242,17 +170,15 @@ class _PedidoDetalheScreenState extends State<PedidoDetalheScreen> {
                     _rec();
                   },
                 ),
-              if (st != 'entregue')
-                IconButton(
+              IconButton(
                   icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Excluir',
+                  tooltip: 'Excluir venda',
                   onPressed: () async {
-                    if (!await confirmarExclusao(context, 'o pedido #${widget.pedidoId}',
-                        detalhe: 'Só é possível excluir pedidos sem pagamento. Com sinal recebido, use Cancelar.')) {
+                    if (!await confirmarExclusao(context, 'a venda #${widget.pedidoId}', detalhe: avisoExcluirVenda)) {
                       return;
                     }
                     if (!context.mounted) return;
-                    final ok = await executar(context, () => S.pedidos.excluir(widget.pedidoId), sucesso: 'Pedido excluído');
+                    final ok = await executar(context, () => S.pedidos.excluir(widget.pedidoId), sucesso: 'Venda excluída');
                     if (ok && context.mounted) Navigator.pop(context);
                   },
                 ),
@@ -339,9 +265,6 @@ class _PedidoDetalheScreenState extends State<PedidoDetalheScreen> {
                       _rec();
                     },
                   ),
-                if (st == 'orcamento' || aberto)
-                  TextButton(onPressed: () => _cancelar(t), child: const Text('Cancelar', style: TextStyle(color: Colors.red))),
-                if (st == 'entregue') TextButton(onPressed: () => _estornar(t), child: const Text('Estornar venda')),
               ]),
             ),
           ),
@@ -350,3 +273,8 @@ class _PedidoDetalheScreenState extends State<PedidoDetalheScreen> {
     );
   }
 }
+
+/// Explica o que acontece ao excluir uma venda.
+const avisoExcluirVenda = 'Tudo o que a venda gerou será desfeito: o valor recebido sai do caixa, '
+    'o fiado/contas a receber são apagados, os produtos voltam ao estoque e, se veio da agenda, '
+    'o atendimento volta para "agendado".';

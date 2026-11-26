@@ -92,52 +92,95 @@ class CadastroService {
     ],
   };
 
-  /// Lança [RegraException] se o registro estiver em uso.
-  static Future<void> verificarUso(DatabaseExecutor ex, String tabela, int id) async {
+  /// Lista onde o registro é usado (vazio se não for usado em nada).
+  static Future<List<String>> usos(DatabaseExecutor ex, String tabela, int id) async {
     final usos = <String>[];
     for (final (sql, desc) in dependencias[tabela] ?? const <(String, String)>[]) {
       final r = await ex.rawQuery(sql, [id]);
       if (((r.first['c'] as int?) ?? 0) > 0) usos.add(desc);
     }
-    if (usos.isNotEmpty) {
-      final temAtivo = ['clientes', 'fornecedores'].contains(tabela) ? '' : ' Se não for mais usar, desative o cadastro.';
-      throw RegraException('Não é possível excluir: o cadastro é usado em ${usos.toSet().join(', ')}.$temAtivo');
-    }
+    return usos.toSet().toList();
   }
 
-  /// Exclui um cadastro simples (clientes, fornecedores, contas, meios, categorias).
-  Future<void> excluirSimples(String tabela, int id) async {
+  /// Tabelas com campo "ativo": se tiverem histórico, são desativadas em vez de apagadas.
+  static const _comAtivo = {'contas_financeiras', 'meios_pagamento', 'categorias_financeiras', 'itens', 'variacoes'};
+
+  static const msgDesativado = 'Tinha histórico, então foi desativado: não aparece mais para novas vendas.';
+
+  /// Exclui um cadastro simples. Devolve a mensagem para mostrar.
+  /// Em uso: clientes/fornecedores/categorias são desvinculados do histórico e apagados;
+  /// os demais são desativados (o histórico continua correto).
+  Future<String> excluirSimples(String tabela, int id) async {
     if (!dependencias.containsKey(tabela)) throw RegraException('Exclusão não permitida para este cadastro');
-    await db.transaction((txn) async {
-      await verificarUso(txn, tabela, id);
+    return db.transaction((txn) async {
+      final emUso = await usos(txn, tabela, id);
+      if (emUso.isEmpty) {
+        await txn.delete(tabela, where: 'id = ?', whereArgs: [id]);
+        await Base.auditar(txn, 'excluir_cadastro', entidade: tabela, entidadeId: id);
+        return 'Excluído';
+      }
+      if (tabela == 'categorias_financeiras') {
+        final sis = await txn.query(tabela, where: 'id = ? AND codigo IS NOT NULL', whereArgs: [id]);
+        if (sis.isNotEmpty) throw RegraException('Esta categoria é usada pelo sistema e não pode ser excluída.');
+      }
+      if (_comAtivo.contains(tabela)) {
+        await txn.update(tabela, {'ativo': 0}, where: 'id = ?', whereArgs: [id]);
+        await Base.auditar(txn, 'desativar_cadastro', entidade: tabela, entidadeId: id);
+        return msgDesativado;
+      }
+      if (tabela == 'clientes') {
+        final aberto = await txn.rawQuery(
+            "SELECT COUNT(*) c FROM titulos WHERE cliente_id = ? AND tipo = 'receber' AND status IN ('aberto','parcial')", [id]);
+        if (((aberto.first['c'] as int?) ?? 0) > 0) {
+          throw RegraException('Esta cliente tem fiado em aberto. Receba ou exclua as vendas antes de apagar o cadastro.');
+        }
+        for (final t in ['pedidos', 'agendamentos', 'titulos']) {
+          await txn.update(t, {'cliente_id': null}, where: 'cliente_id = ?', whereArgs: [id]);
+        }
+      } else if (tabela == 'fornecedores') {
+        for (final t in ['compras', 'titulos', 'itens']) {
+          await txn.update(t, {'fornecedor_id': null}, where: 'fornecedor_id = ?', whereArgs: [id]);
+        }
+      } else if (tabela == 'categorias') {
+        await txn.update('itens', {'categoria_id': null}, where: 'categoria_id = ?', whereArgs: [id]);
+      }
       await txn.delete(tabela, where: 'id = ?', whereArgs: [id]);
       await Base.auditar(txn, 'excluir_cadastro', entidade: tabela, entidadeId: id);
+      return 'Excluído (o histórico foi mantido)';
     });
   }
 
-  /// Exclui um produto/insumo sem movimentação, com suas variações.
-  Future<void> excluirItem(int itemId) async {
-    await db.transaction((txn) async {
-      await verificarUso(txn, 'itens', itemId);
+  /// Exclui um produto/serviço. Se tiver histórico, é desativado. Devolve a mensagem.
+  Future<String> excluirItem(int itemId) async {
+    return db.transaction((txn) async {
+      if ((await usos(txn, 'itens', itemId)).isNotEmpty) {
+        await txn.update('itens', {'ativo': 0}, where: 'id = ?', whereArgs: [itemId]);
+        return msgDesativado;
+      }
       await txn.rawDelete('DELETE FROM precos_tabela WHERE variacao_id IN (SELECT id FROM variacoes WHERE item_id = ?)', [itemId]);
       await txn.delete('variacoes', where: 'item_id = ?', whereArgs: [itemId]);
       await txn.delete('itens', where: 'id = ?', whereArgs: [itemId]);
       await Base.auditar(txn, 'excluir_item', entidade: 'itens', entidadeId: itemId);
+      return 'Excluído';
     });
   }
 
-  /// Exclui uma variação sem movimentação (o produto precisa manter ao menos uma).
-  Future<void> excluirVariacao(int variacaoId) async {
-    await db.transaction((txn) async {
+  /// Exclui uma variação (o produto precisa manter ao menos uma). Com histórico, desativa.
+  Future<String> excluirVariacao(int variacaoId) async {
+    return db.transaction((txn) async {
       final v = await txn.query('variacoes', where: 'id = ?', whereArgs: [variacaoId]);
       if (v.isEmpty) throw RegraException('Variação não encontrada');
       final irmas = await txn.rawQuery('SELECT COUNT(*) c FROM variacoes WHERE item_id = ?', [v.first['item_id']]);
       if (((irmas.first['c'] as int?) ?? 0) <= 1) {
         throw RegraException('O produto precisa ter ao menos uma variação. Edite esta em vez de excluir.');
       }
-      await verificarUso(txn, 'variacoes', variacaoId);
+      if ((await usos(txn, 'variacoes', variacaoId)).isNotEmpty) {
+        await txn.update('variacoes', {'ativo': 0}, where: 'id = ?', whereArgs: [variacaoId]);
+        return msgDesativado;
+      }
       await txn.delete('precos_tabela', where: 'variacao_id = ?', whereArgs: [variacaoId]);
       await txn.delete('variacoes', where: 'id = ?', whereArgs: [variacaoId]);
+      return 'Excluída';
     });
   }
 

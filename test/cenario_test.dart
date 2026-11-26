@@ -280,12 +280,18 @@ void main() {
     expect((await est.saldo(doce, v)).disponivel, 2);
     expect(await FinanceiroService(db).saldoConta(1), 0);
 
-    // Venda de 3 unidades falha: só 2 válidas (lote vencido bloqueado).
-    await expectLater(
-      ped.vendaBalcao(data: hoje, itens: [ItemPedido(itemId: doce, variacaoId: v, quantidade: 3, precoUnitario: 120)], pagamentos: const []),
-      throwsA(isA<RegraException>()),
-    );
+    // Venda de 3 unidades com só 2 válidas: a venda não trava (lote vencido continua bloqueado).
+    final pv = await ped.vendaBalcao(
+        data: hoje,
+        itens: [ItemPedido(itemId: doce, variacaoId: v, quantidade: 3, precoUnitario: 120)],
+        pagamentos: [PagamentoInfo(meioId: 1, valor: 360)]);
+    expect((await est.saldo(doce, v)).fisico, 5);
+    expect(await FinanceiroService(db).saldoConta(1), 360);
+    // Excluir a venda desfaz tudo: estoque e caixa voltam.
+    await ped.excluir(pv);
     expect((await est.saldo(doce, v)).fisico, 7);
+    expect(await FinanceiroService(db).saldoConta(1), 0);
+    expect(await db.query('pedidos', where: 'id = ?', whereArgs: [pv]), isEmpty);
   });
 
   test('cartão: taxa registrada uma vez e conciliação do depósito', () async {
@@ -336,7 +342,7 @@ void main() {
     expect((await est.saldo(prod, v)).fisico, 0);
     expect(await fin.saldoConta(2), 500);
 
-    // Compra cujos itens foram reservados para um pedido não pode ser excluída.
+    // Compra com itens reservados para um pedido também pode ser excluída.
     final cli = await db.insert('clientes', {'nome': 'Cli', 'criado_em': agoraIso()});
     final ped = PedidoService(db);
     final p1 = await ped.salvar(tipo: 'encomenda', clienteId: cli, dataPedido: hoje,
@@ -345,20 +351,20 @@ void main() {
     final c2 = await compras.salvar(fornecedorId: marca, data: hoje, condicao: 'prazo', parcelas: 1, contaId: 2,
         itens: [ItemCompra(itemId: prod, variacaoId: v, quantidade: 1, custoTotal: 30)]);
     await compras.confirmar(c2); // reserva automática para o pedido
-    await expectLater(compras.excluir(c2), throwsA(isA<RegraException>()));
-
-    // Pedido sem pagamento é excluído e libera a reserva; aí a compra pode ser excluída.
-    await ped.excluir(p1);
-    expect((await est.saldo(prod, v)).reservado, 0);
     await compras.excluir(c2);
     expect((await est.saldo(prod, v)).fisico, 0);
     expect(await fin.titulosAbertos(tipo: 'pagar'), isEmpty);
+    await ped.excluir(p1);
+    expect((await est.saldo(prod, v)).reservado, 0);
 
-    // Pedido com sinal não é excluído.
+    // Pedido com sinal também é excluído, e o sinal sai do caixa.
+    final caixaAntes = await fin.saldoConta(1);
     final p2 = await ped.salvar(tipo: 'encomenda', clienteId: cli, dataPedido: hoje,
         itens: [ItemPedido(itemId: prod, variacaoId: v, quantidade: 1, precoUnitario: 50)]);
     await ped.registrarPagamento(pedidoId: p2, meioId: 1, valor: 10, data: hoje);
-    await expectLater(ped.excluir(p2), throwsA(isA<RegraException>()));
+    expect(await fin.saldoConta(1), caixaAntes + 10);
+    await ped.excluir(p2);
+    expect(await fin.saldoConta(1), caixaAntes);
 
     // Tabelas de preço: a padrão não sai; outra sem uso sai e libera os clientes.
     final precos = PrecoService(db);
@@ -369,9 +375,11 @@ void main() {
     await precos.excluirTabela(promo);
     expect((await db.query('clientes', where: 'id = ?', whereArgs: [cli])).first['tabela_id'], isNull);
 
-    // Cadastros em uso não são excluídos; sem uso, sim.
-    await expectLater(cad.excluirSimples('fornecedores', marca), throwsA(isA<RegraException>()));
-    await expectLater(cad.excluirSimples('clientes', cli), throwsA(isA<RegraException>()));
+    // Cadastros: clientes e fornecedores saem mesmo com histórico (o histórico fica sem o nome).
+    await cad.excluirSimples('fornecedores', marca);
+    await cad.excluirSimples('clientes', cli);
+    expect(await db.query('clientes', where: 'id = ?', whereArgs: [cli]), isEmpty);
+
     final novo = await cad.salvarItem({'tipo': 'acabado', 'nome': 'Sem uso', 'unidade_venda': 'un'});
     final v1 = (await cad.variacoes(novo)).first['id'] as int;
     final v2 = await cad.salvarVariacao({'item_id': novo, 'nome': 'Outra', 'unidade_venda': 'un', 'preco_venda': 10});
@@ -423,9 +431,15 @@ void main() {
     expect((await db.query('pedidos', where: 'id = ?', whereArgs: [pid])).first['status'], 'entregue');
     expect(await FiadoService(db).saldoDevedor(ana), 30);
     await expectLater(ag.concluir(id: a1, pagamentos: const []), throwsA(isA<RegraException>()));
-    await expectLater(ag.excluir(a1), throwsA(isA<RegraException>()));
     final r = await ag.resumoDia(hoje);
     expect(r.concluidos, 1);
+
+    // Desfazer a conclusão apaga a venda (Pix e fiado) e volta para agendado.
+    await ag.alterarStatus(a1, 'agendado');
+    expect((await ag.obter(a1))['status'], 'agendado');
+    expect((await ag.obter(a1))['pedido_id'], isNull);
+    expect(await FiadoService(db).saldoDevedor(ana), 0);
+    expect(await db.query('pedidos', where: 'id = ?', whereArgs: [pid]), isEmpty);
 
     // Fiado sem cliente não é aceito (e o atendimento continua agendado).
     final a2 = await ag.salvar(itemId: escova, variacaoId: v, data: hoje, hora: '14:00', valor: 50);
@@ -438,6 +452,6 @@ void main() {
     await ag.alterarStatus(a2, 'cancelado');
     await ag.excluir(a2);
     expect(await db.query('agendamentos', where: 'id = ?', whereArgs: [a2]), isEmpty);
-    await expectLater(cad.excluirItem(escova), throwsA(isA<RegraException>())); // usado na agenda
+    expect(await cad.excluirItem(escova), CadastroService.msgDesativado); // usado na agenda: desativa
   });
 }

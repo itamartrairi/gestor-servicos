@@ -247,10 +247,15 @@ Future<void> acoesAtendimento(BuildContext context, Map<String, Object?> a) asyn
         ],
         if (st == 'cancelado' || st == 'faltou')
           ListTile(leading: const Icon(Icons.undo), title: const Text('Voltar para agendado'), onTap: () => Navigator.pop(c, 'agendado')),
-        if (st == 'concluido' && a['pedido_id'] != null)
+        if (st == 'concluido' && a['pedido_id'] != null) ...[
           ListTile(leading: const Icon(Icons.receipt_long_outlined), title: const Text('Ver venda'), onTap: () => Navigator.pop(c, 'venda')),
-        if (st != 'concluido')
           ListTile(
+              leading: const Icon(Icons.undo),
+              title: const Text('Desfazer conclusão'),
+              subtitle: const Text('Apaga o recebimento e volta para agendado'),
+              onTap: () => Navigator.pop(c, 'desfazer')),
+        ],
+        ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
               title: const Text('Excluir', style: TextStyle(color: Colors.red)),
               onTap: () => Navigator.pop(c, 'excluir')),
@@ -268,8 +273,17 @@ Future<void> acoesAtendimento(BuildContext context, Map<String, Object?> a) asyn
       await executar(context, () => S.agenda.alterarStatus(id, op), sucesso: 'Atendimento atualizado');
     case 'venda':
       await abrir(context, PedidoDetalheScreen(pedidoId: a['pedido_id'] as int));
+    case 'desfazer':
+      if (await confirmar(context, 'Desfazer conclusão?',
+              'O recebimento deste atendimento será apagado (sai do caixa e do fiado) e ele volta para agendado.',
+              ok: 'Desfazer') &&
+          context.mounted) {
+        await executar(context, () => S.agenda.alterarStatus(id, 'agendado'), sucesso: 'Conclusão desfeita');
+      }
     case 'excluir':
-      if (await confirmarExclusao(context, 'este atendimento') && context.mounted) {
+      if (await confirmarExclusao(context, 'este atendimento',
+              detalhe: st == 'concluido' ? 'O recebimento deste atendimento também será apagado.' : null) &&
+          context.mounted) {
         await executar(context, () => S.agenda.excluir(id), sucesso: 'Atendimento excluído');
       }
   }

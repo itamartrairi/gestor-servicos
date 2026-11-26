@@ -454,7 +454,7 @@ class _Movimentos extends StatelessWidget {
               onLongPress: Base.i(m['estornado']) == 1 || m['estorno_de'] != null
                   ? null
                   : () async {
-                      final motivo = await pedirTexto(context, 'Estornar movimento');
+                      final motivo = await pedirTexto(context, 'Estornar movimento', rotulo: 'Motivo (opcional)');
                       if (motivo == null || !context.mounted) return;
                       await executar(context, () => S.fin.estornarMovimento(movimentoId: m['id'] as int, motivo: motivo),
                           sucesso: 'Estorno registrado');

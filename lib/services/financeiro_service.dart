@@ -278,10 +278,6 @@ class FinanceiroService {
     if (origemId == destinoId) throw RegraException('Escolha contas diferentes');
     if (valor <= 0) throw RegraException('Informe o valor');
     await db.transaction((txn) async {
-      final saldoOrigem = await saldoConta(origemId, ex: txn);
-      if (valor > saldoOrigem + 0.005) {
-        throw RegraException('Saldo insuficiente na conta de origem (${brl(saldoOrigem)}).');
-      }
       final cat = await Base.categoriaFin(txn, 'TRANSF');
       final tid = 'T${DateTime.now().microsecondsSinceEpoch}';
       final desc = descricao?.isNotEmpty == true ? descricao! : 'Transferência entre contas';
@@ -297,7 +293,6 @@ class FinanceiroService {
   /// Estorno de um movimento: gera o movimento inverso na data informada,
   /// reabre o título e reverte juros/descontos lançados no resultado.
   Future<void> estornarMovimento({required int movimentoId, required String motivo, String? data}) async {
-    if (motivo.trim().isEmpty) throw RegraException('Informe o motivo do estorno');
     await db.transaction((txn) async {
       final m = (await txn.query('movimentos_financeiros', where: 'id = ?', whereArgs: [movimentoId])).first;
       if (Base.i(m['estornado']) == 1) throw RegraException('Movimento já estornado');
@@ -415,8 +410,6 @@ class FinanceiroService {
     if (valor <= 0) throw RegraException('Informe o valor');
     await db.transaction((txn) async {
       if (tipo == 'saida') {
-        final s = await saldoConta(contaId, ex: txn);
-        if (valor > s + 0.005) throw RegraException('Saldo insuficiente na conta (${brl(s)}).');
       }
       final movId = await criarMovimento(txn,
           data: data, contaId: contaId, tipo: tipo, valor: valor, categoriaId: categoriaId, descricao: descricao, refTipo: 'avulso_caixa');
@@ -436,7 +429,6 @@ class FinanceiroService {
   }
 
   Future<void> cancelarTitulo(int tituloId, String motivo) async {
-    if (motivo.trim().isEmpty) throw RegraException('Informe o motivo');
     await db.transaction((txn) async {
       final pago = await pagoDoTitulo(txn, tituloId);
       if (pago > 0.005) throw RegraException('Estorne os pagamentos antes de cancelar o título.');

@@ -183,8 +183,9 @@ class EstoqueService {
     final insumo = Base.ehInsumo(it['tipo'] as String);
     final nome = await Base.nomeItem(ex, itemId, variacaoId);
     final s = await saldo(itemId, variacaoId, ex: ex, data: data);
-    if (loteEspecifico == null) {
-      final disponivel = s.valido - (s.reservado - reservaPropria);
+    final venda = tipoMov == 'venda';
+    if (loteEspecifico == null && !venda) {
+      final disponivel = s.valido;
       if (quantidade > disponivel + Base.eps) {
         throw RegraException(
             'Saldo insuficiente de $nome: necessário ${numero(quantidade)}, disponível ${numero(disponivel < 0 ? 0 : disponivel)}'
@@ -232,6 +233,25 @@ class EstoqueService {
       consumos.add(ConsumoLote(l['id'] as int, q, custoUnit));
       restante -= q;
     }
+    if (restante > Base.eps && venda) {
+      // Venda sem estoque cadastrado: registra a saída pelo custo médio, sem travar a venda.
+      await ex.insert('movimentos_estoque', {
+        'data': data,
+        'item_id': itemId,
+        'variacao_id': variacaoId,
+        'lote_id': null,
+        'tipo': tipoMov,
+        'quantidade': -restante,
+        'custo_unitario': r6(cm),
+        'custo_total': -r2(restante * cm),
+        'ref_tipo': refTipo,
+        'ref_id': refId,
+        'motivo': 'Vendido sem estoque registrado',
+        'criado_em': agoraIso(),
+      });
+      consumos.add(ConsumoLote(0, restante, cm));
+      restante = 0;
+    }
     if (restante > Base.eps) {
       throw RegraException('Saldo insuficiente em lotes válidos de $nome (faltam ${numero(restante)}).');
     }
@@ -248,7 +268,6 @@ class EstoqueService {
     double? custoUnitarioEntrada,
     String? validade,
   }) async {
-    if (motivo.trim().isEmpty) throw RegraException('Informe o motivo do ajuste');
     await db.transaction((txn) async {
       final data = _hoje();
       final s = await saldo(itemId, variacaoId, ex: txn);
@@ -258,9 +277,6 @@ class EstoqueService {
       if (dif.abs() < Base.eps) return;
       final catPerdas = await Base.categoriaFin(txn, 'PERDAS');
       if (dif < 0) {
-        if (novaQuantidade < s.reservado - Base.eps) {
-          throw RegraException('O novo saldo ficaria abaixo da quantidade reservada para pedidos (${numero(s.reservado)}).');
-        }
         final r = await consumir(txn,
             itemId: itemId,
             variacaoId: variacaoId,
@@ -329,16 +345,10 @@ class EstoqueService {
     required double quantidade,
     required String motivo,
   }) async {
-    if (motivo.trim().isEmpty) throw RegraException('Informe o motivo da perda');
     await db.transaction((txn) async {
       final l = (await txn.query('lotes', where: 'id = ?', whereArgs: [loteId])).first;
       final itemId = l['item_id'] as int;
       final varId = l['variacao_id'] as int;
-      final s = await saldo(itemId, varId, ex: txn);
-      final venc = l['validade'] != null && (l['validade'] as String).compareTo(_hoje()) < 0;
-      if (!venc && s.valido - quantidade < s.reservado - Base.eps) {
-        throw RegraException('A perda deixaria o saldo abaixo das reservas de pedidos.');
-      }
       final data = _hoje();
       final r = await consumir(txn,
           itemId: itemId,

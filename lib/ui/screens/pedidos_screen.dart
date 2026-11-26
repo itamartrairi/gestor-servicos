@@ -106,19 +106,17 @@ class _PedidosScreenState extends State<PedidosScreen> {
                           const SizedBox(height: 4),
                           Etiqueta(PedidoService.rotulos[st] ?? st, cor: _cor(st)),
                         ]),
-                        if (st != 'entregue')
-                          PopupMenuButton<String>(
+                        PopupMenuButton<String>(
                             tooltip: 'Editar ou excluir',
                             onSelected: (op) async {
                               if (op == 'editar') {
                                 await abrir(context, PedidoFormScreen(tipo: p['tipo'] as String, pedidoId: p['id'] as int));
                               } else if (op == 'excluir') {
-                                if (!await confirmarExclusao(context, 'o pedido #${p['id']}',
-                                    detalhe: 'Só é possível excluir pedidos sem pagamento. Com sinal recebido, use Cancelar.')) {
+                                if (!await confirmarExclusao(context, 'a venda #${p['id']}', detalhe: avisoExcluirVenda)) {
                                   return;
                                 }
                                 if (!context.mounted) return;
-                                await executar(context, () => S.pedidos.excluir(p['id'] as int), sucesso: 'Pedido excluído');
+                                await executar(context, () => S.pedidos.excluir(p['id'] as int), sucesso: 'Venda excluída');
                               }
                               rec();
                             },
