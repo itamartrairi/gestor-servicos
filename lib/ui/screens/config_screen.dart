@@ -179,6 +179,27 @@ class _ConfigScreenState extends State<ConfigScreen> {
             await executar(context, () => DemoService(banco).carregar(), sucesso: 'Dados de exemplo carregados');
           },
         ),
+        const SizedBox(height: 4),
+        const Text('Os exemplos só podem ser carregados com o app vazio. Para tirar os exemplos depois, use "Apagar todos os dados".',
+            style: TextStyle(fontSize: 12, color: Colors.black54)),
+        const Secao('Começar do zero'),
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700),
+          icon: const Icon(Icons.delete_forever_outlined),
+          label: const Text('Apagar todos os dados'),
+          onPressed: () async {
+            if (!await confirmar(context, 'Apagar todos os dados?',
+                'Serviços, clientes, agenda, vendas, financeiro e logomarca deste aparelho serão apagados. '
+                'Faça um backup antes se quiser guardar alguma coisa.', ok: 'Continuar')) {
+              return;
+            }
+            if (!context.mounted) return;
+            if (!await confirmar(context, 'Tem certeza?', 'Esta ação não pode ser desfeita.', ok: 'Apagar tudo')) return;
+            await AppDb.zerar(AppDb.instance);
+            await Logo.remover();
+            GestorApp.reiniciar.value++;
+          },
+        ),
         const SizedBox(height: 24),
         Text('Versão do banco: ${AppDb.versaoEsquema}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ]),

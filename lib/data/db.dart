@@ -59,6 +59,15 @@ class AppDb {
 
   static void definirInstancia(AppDb app) => _instance = app;
 
+  /// Apaga toda a base e recria vazia (volta à tela de boas-vindas).
+  static Future<AppDb> zerar(AppDb atual) async {
+    final f = atual.factory;
+    final caminho = atual.path;
+    await atual.fechar();
+    await f.deleteDatabase(caminho);
+    return abrir(caminho: caminho, factory: f);
+  }
+
   Future<void> fechar() async {
     await db.close();
   }

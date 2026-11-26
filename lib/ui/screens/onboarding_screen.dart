@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../main.dart';
 import '../../services/base.dart';
+import '../../services/demo_service.dart';
 import '../widgets/comum.dart';
 import '../widgets/logo.dart';
 
@@ -17,6 +18,8 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final _nome = TextEditingController();
   Uint8List? _logo;
+  bool _exemplos = false;
+  bool _ocupado = false;
 
   @override
   void initState() {
@@ -54,14 +57,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ]),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            value: _exemplos,
+            onChanged: (v) => setState(() => _exemplos = v),
+            title: const Text('Começar com dados de exemplo'),
+            subtitle: const Text('Para conhecer o app. Deixe desligado para começar vazio.'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 12),
           FilledButton(
-            onPressed: () async {
+            onPressed: _ocupado ? null : () async {
               if (_nome.text.trim().isEmpty) {
                 mostrarErro(context, 'Informe o nome do negócio');
                 return;
               }
-              await Base(banco).setConfig('nome_negocio', _nome.text.trim());
+              setState(() => _ocupado = true);
+              try {
+                await Base(banco).setConfig('nome_negocio', _nome.text.trim());
+                if (_exemplos) await DemoService(banco).carregar();
+              } catch (e) {
+                if (context.mounted) mostrarErro(context, 'Não foi possível carregar os exemplos ($e)');
+              }
               GestorApp.reiniciar.value++;
             },
             child: const Padding(padding: EdgeInsets.all(12), child: Text('Começar')),

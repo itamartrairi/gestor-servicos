@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'data/db.dart';
 import 'data/fabrica.dart';
 import 'services/base.dart';
-import 'services/demo_service.dart';
 import 'ui/screens/home_screen.dart';
 import 'ui/screens/onboarding_screen.dart';
 
@@ -104,25 +103,7 @@ class _NegocioState extends State<_Negocio> {
     if (nome == null || nome.trim().isEmpty) {
       return (configurado: false, erroExemplos: false);
     }
-    final temDados = (await db.rawQuery('''
-      SELECT EXISTS (SELECT 1 FROM itens)
-          OR EXISTS (SELECT 1 FROM clientes)
-          OR EXISTS (SELECT 1 FROM fornecedores)
-          OR EXISTS (SELECT 1 FROM compras)
-          OR EXISTS (SELECT 1 FROM pedidos)
-          OR EXISTS (SELECT 1 FROM agendamentos)
-          OR EXISTS (SELECT 1 FROM titulos)
-          OR EXISTS (SELECT 1 FROM movimentos_financeiros)
-          OR EXISTS (SELECT 1 FROM lancamentos_resultado) AS resultado
-    ''')).single['resultado'] == 1;
-    if (!temDados) {
-      try {
-        await DemoService(db).carregar();
-      } on Exception catch (erro, pilha) {
-        debugPrint('Falha ao carregar exemplos: $erro\n$pilha');
-        return (configurado: true, erroExemplos: true);
-      }
-    }
+    // Os dados de exemplo só entram se a pessoa pedir (boas-vindas ou Configurações).
     return (configurado: true, erroExemplos: false);
   }
 

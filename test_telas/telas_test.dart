@@ -11,6 +11,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gestor_servicos/data/db.dart';
+import 'package:gestor_servicos/services/demo_service.dart';
 import 'package:gestor_servicos/main.dart';
 import 'package:gestor_servicos/services/base.dart';
 import 'package:gestor_servicos/ui/screens/agenda_screen.dart';
@@ -118,6 +119,7 @@ void main() {
     await t.runAsync(() async {
       final app = await AppDb.abrir(caminho: '${tmp.path}/demo.db', factory: databaseFactoryFfi);
       await Base(app.db).setConfig('nome_negocio', 'Studio Bela');
+      await DemoService(app.db).carregar();
     });
     await t.pumpWidget(RepaintBoundary(key: _chave, child: const GestorApp()));
     await _assentar(t, max: 200);
