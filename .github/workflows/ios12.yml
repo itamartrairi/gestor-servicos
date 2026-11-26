@@ -22,6 +22,12 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Usar bibliotecas compatíveis com o Flutter 3.32
+        run: |
+          perl -pi -e 's/^  file_picker: .*/  file_picker: ^10.3.0/' pubspec.yaml
+          cp tool/ios12/arquivos_legado.dart.txt lib/core/arquivos.dart
+          grep -n file_picker pubspec.yaml
+
       - name: Gerar pastas das plataformas
         run: bash tool/preparar_plataformas.sh
 

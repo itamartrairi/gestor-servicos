@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
+import '../../core/arquivos.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/format.dart';
@@ -91,17 +91,15 @@ class _ConfigScreenState extends State<ConfigScreen> {
     await executar(context, () async {
       final bytes = await BackupService.gerar(app: AppDb.instance, senha: senha);
       final nome = 'backup_gestor_servicos_${hojeIso()}.gsvbak';
-      final caminho = await FilePicker.saveFile(dialogTitle: 'Salvar backup', fileName: nome, bytes: bytes);
+      final caminho = await salvarArquivo(titulo: 'Salvar backup', nome: nome, bytes: bytes);
       if (caminho == null) throw RegraException('Backup não salvo (operação cancelada).');
       await Base.auditar(banco, 'backup', detalhes: nome);
     }, sucesso: 'Backup salvo');
   }
 
   Future<void> _restaurar() async {
-    final arquivo = await FilePicker.pickFile();
-    if (arquivo == null || !mounted) return;
-    final Uint8List bytes = Uint8List.fromList(await arquivo.readAsBytes());
-    if (!mounted) return;
+    final Uint8List? bytes = await escolherArquivo();
+    if (bytes == null || !mounted) return;
     final senha = await _senha('Restaurar backup');
     if (senha == null || !mounted) return;
     Map<String, List<int>> arquivos;

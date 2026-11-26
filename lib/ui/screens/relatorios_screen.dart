@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
+import '../../core/arquivos.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
@@ -217,11 +217,7 @@ class VisualizarPdf extends StatelessWidget {
             tooltip: 'Salvar em…',
             onPressed: () async {
               await executar(context, () async {
-                final caminho = await FilePicker.saveFile(
-                  dialogTitle: 'Salvar PDF',
-                  fileName: nome,
-                  bytes: bytes,
-                );
+                final caminho = await salvarArquivo(titulo: 'Salvar PDF', nome: nome, bytes: bytes);
                 if (caminho != null && context.mounted) mostrarOk(context, 'PDF salvo');
               });
             },
