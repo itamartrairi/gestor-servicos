@@ -34,6 +34,7 @@ flutter:
   assets:
     - assets/fonts/NotoSans-Regular.ttf
     - assets/fonts/NotoSans-Bold.ttf
+    - assets/marca/ig_logo.png
 
 # Ícone do app (gerado no build por tool/preparar_plataformas.sh).
 # Arte original em assets/icon, criada por tool/gerar_icones.py.

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../widgets/comum.dart';
+import '../widgets/rodape.dart';
 import 'cadastros_screen.dart';
 import 'compras_screen.dart';
 import 'config_screen.dart';
@@ -47,6 +48,7 @@ class MaisScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => abrir(context, i.$4),
           ),
+        const RodapeIG(),
       ]),
     );
   }

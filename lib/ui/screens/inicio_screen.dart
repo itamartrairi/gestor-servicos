@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/format.dart';
 import '../../services/base.dart';
 import '../widgets/comum.dart';
+import '../widgets/rodape.dart';
 import 'agenda_screen.dart';
 import 'cadastros_screen.dart';
 import 'dre_screen.dart';
@@ -204,6 +205,7 @@ class _InicioScreenState extends State<InicioScreen> {
                       ]),
                     ),
                   ],
+                  const RodapeIG(),
                 ]),
               ),
             ]),
