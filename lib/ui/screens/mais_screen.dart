@@ -36,9 +36,6 @@ class MaisScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mais'),
-        backgroundColor: const Color(0xFF8E2F5E),
-        foregroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
       ),
       backgroundColor: const Color(0xFFFBF3F7),
       body: ListView(padding: const EdgeInsets.all(12), children: [
